@@ -1,15 +1,17 @@
+import crypto from "crypto";
+import bcrypt from "bcrypt";
 import {
     ForgotPasswordDTO,
     IService,
     LoginDTO,
     RefreshTokenDTO,
+    ResetPasswordDTO,
     SignupDTO,
     VerifyDeviceChangeOTPDTO
 } from "../interfaces";
 
 import {prisma} from "../lib/db";
-import {BadRequestError, CustomErrorCode} from "../exceptions";
-
+import {BadRequestError, CustomErrorCode, NotFoundError} from "../exceptions";
 // Souce of Truth -> Database
 
 class AuthService {
@@ -78,6 +80,99 @@ class AuthService {
             }
         }
     }
+    public static async forgotPassword(input: ForgotPasswordDTO): Promise<IService> {
+        const { email, deviceId } = input;
+        
+        // Check if user exists
+        const user = await prisma.users.findUnique({
+            where: { email }
+        });
+        
+        // For security, don't reveal if email exists or not
+        if (!user) {
+            return {
+                success: true,
+                message: "If an account exists, a password reset link has been sent to your email",
+            }
+        }
+        
+        // Generate a secure random token
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        
+        // Token expires in 1 hour
+        const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+        
+        // Store token in database
+        await prisma.userToken.upsert({
+            where: { userId: user.id },
+            update: {
+                resetPasswordToken: resetToken,
+                resetPasswordExpires: expiresAt,
+            },
+            create: {
+                userId: user.id,
+                resetPasswordToken: resetToken,
+                resetPasswordExpires: expiresAt,
+            },
+        });
+        
+        // Log token for testing (remove in production)
+        console.log(`\n 🔐 RESET TOKEN FOR ${email}: ${resetToken}\n`);
+        
+        return {
+            success: true,
+            message: "If an account exists, a password reset link has been sent to your email",
+        }
+    }
+    public static async resetPassword(input: ResetPasswordDTO): Promise<IService> {
+        const { token, newPassword, deviceId } = input;
+        
+        // Find the token in database
+        const tokenRecord = await prisma.userToken.findFirst({
+            where: {
+                resetPasswordToken: token,
+                resetPasswordExpires: {
+                    gt: new Date(),
+                },
+            },
+            include: {
+                user: true,
+            },
+        });
+        
+        // Check if token exists and is valid
+        if (!tokenRecord) {
+            throw new BadRequestError({
+                msg: "Invalid or expired reset token",
+                errorCode: CustomErrorCode.AUTH_INVALID,
+            });
+        }
+        
+        // Hash the new password
+        const saltRounds = 10;
+        const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+        
+        // Update user's password
+        await prisma.users.update({
+            where: { id: tokenRecord.userId },
+            data: { password: hashedPassword },
+        });
+        
+        // Delete the used token
+        await prisma.userToken.update({
+            where: { userId: tokenRecord.userId },
+            data: {
+                resetPasswordToken: null,
+                resetPasswordExpires: null,
+            },
+        });
+        
+        return {
+            success: true,
+            message: "Password has been reset successfully",
+        }
+    }
+
 
 
     // Refresh Tokens -> These are tokens use in the background to keep the user logged in without them having to re-enter their credentials.
@@ -94,20 +189,7 @@ class AuthService {
         }
     }
 
-    public static async forgotPassword(input: ForgotPasswordDTO): Promise<IService> {
-        return {
-            success: true,
-            message: "Password reset link sent to your email",
-        }
-    }
-
-    public static async resetPassword(input: ForgotPasswordDTO): Promise<IService> {
-        return {
-            success: true,
-            message: "Password reset successful",
-        }
-    }
-
+   
 }
 
 

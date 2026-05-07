@@ -1,8 +1,9 @@
 import authService from "../services/auth.service";
 import {FastifyReply, FastifyRequest} from "fastify";
 import {sendResponse} from "../helpers";
-import {LoginRequest} from "../schemas";
+//import {LoginRequest} from "../schemas";
 import AuthService from "../services/auth.service";
+import {LoginRequest, ForgotPasswordRequest, ResetPasswordRequest} from "../schemas";
 
 class AuthController {
     constructor() {
@@ -22,6 +23,25 @@ class AuthController {
         })
         return sendResponse(reply, result)
     }
+    public static async forgotPassword(request: FastifyRequest, reply: FastifyReply) {
+        const { email } = ForgotPasswordRequest.parse(request.body ?? {});
+        const result = await AuthService.forgotPassword({
+            deviceId: <string>request.headers['x-device-id'],
+            email,
+        });
+        return sendResponse(reply, result);
+    }
+
+    public static async resetPassword(request: FastifyRequest, reply: FastifyReply) {
+        const { token, newPassword } = ResetPasswordRequest.parse(request.body ?? {});
+        const result = await AuthService.resetPassword({
+            deviceId: <string>request.headers['x-device-id'],
+            token,
+            newPassword,
+        });
+        return sendResponse(reply, result);
+    }
+
 
 
 }
