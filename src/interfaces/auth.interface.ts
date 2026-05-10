@@ -38,6 +38,8 @@ export interface ChangePasswordDTO extends DeviceId{
 
 export interface VerifyDeviceChangeOTPDTO extends DeviceId {
     otp: string;
+    userId: string; 
+
 }
 
 
