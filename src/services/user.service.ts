@@ -1,17 +1,17 @@
 import { IService } from "../interfaces";
 import userRepository from "../repositories/user.repository";
+import { NotFoundError, CustomErrorCode } from "../exceptions";
 
 export class UserService {
+    
     async getProfile(userId: string): Promise<IService> {
         const user = await userRepository.findById(userId);
         
         if (!user) {
-            // ✅ Return error as regular response, not throw
-            return {
-                success: false,
-                message: "User not found",
-                error: "NOT_FOUND"
-            };
+            throw new NotFoundError({
+                msg: "User not found",
+                errorCode: CustomErrorCode.RESOURCE_NOT_FOUND
+            });
         }
         
         return {
@@ -21,15 +21,20 @@ export class UserService {
         };
     }
 
-    async updateProfile(userId: string, updateData: any): Promise<IService> {
+    async updateProfile(userId: string, updateData: {
+        firstName?: string;
+        lastName?: string;
+        phone?: string;
+        profilePicture?: string;
+        bio?: string;
+    }): Promise<IService> {
         const user = await userRepository.findById(userId);
         
         if (!user) {
-            return {
-                success: false,
-                message: "User not found",
-                error: "NOT_FOUND"
-            };
+            throw new NotFoundError({
+                msg: "User not found",
+                errorCode: CustomErrorCode.RESOURCE_NOT_FOUND
+            });
         }
         
         const updatedUser = await userRepository.updateProfile(userId, updateData);

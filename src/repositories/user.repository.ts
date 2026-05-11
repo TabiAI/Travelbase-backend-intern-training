@@ -1,7 +1,7 @@
 import { prisma } from "../lib/db";
-import userRepository from "../repositories/user.repository";
 
 export class UserRepository {
+    
     async findById(userId: string) {
         return await prisma.users.findUnique({
             where: { id: userId },
@@ -10,6 +10,9 @@ export class UserRepository {
                 email: true,
                 firstName: true,
                 lastName: true,
+                phone: true,
+                profilePicture: true,
+                bio: true,
                 createdAt: true,
                 updatedAt: true,
             }
@@ -19,6 +22,9 @@ export class UserRepository {
     async updateProfile(userId: string, data: {
         firstName?: string;
         lastName?: string;
+        phone?: string;
+        profilePicture?: string;
+        bio?: string;
     }) {
         return await prisma.users.update({
             where: { id: userId },
@@ -31,6 +37,9 @@ export class UserRepository {
                 email: true,
                 firstName: true,
                 lastName: true,
+                phone: true,
+                profilePicture: true,
+                bio: true,
                 createdAt: true,
                 updatedAt: true
             }
