@@ -49,17 +49,3 @@ export enum CustomErrorCode {
     NOT_FOUND = "NOT_FOUND",
 
 }
-
-//
-// {
-//     "statusCode": 400,
-//         "errorCode":"TB_PAY_802",
-//     "message": "Refund failed",
-//
-// }
-//
-// {
-//     "statusCode":400,
-//     errorCode:"TB_VAL_301",
-//     message:"Username must be a valid 6 lenght character"
-// }

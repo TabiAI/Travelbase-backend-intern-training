@@ -1,10 +1,8 @@
 import authService from "../services/auth.service";
+import AuthService from "../services/auth.service";
 import {FastifyReply, FastifyRequest} from "fastify";
 import {sendResponse} from "../helpers";
-//import {LoginRequest} from "../schemas";
-//import {LoginRequest, SignupRequest} from "../schemas";
-import AuthService from "../services/auth.service";
-import {LoginRequest, ForgotPasswordRequest, ResetPasswordRequest,SignupRequest} from "../schemas";
+import {LoginRequest, SignupRequest,ForgotPasswordRequest, ResetPasswordRequest} from "../schemas";
 
 class AuthController {
     constructor() {

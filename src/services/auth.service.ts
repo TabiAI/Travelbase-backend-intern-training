@@ -23,8 +23,11 @@ class AuthService {
     }
 
     public static async signup(input: SignupDTO): Promise<IService> {
+    try {
+        console.log('1. Signup started');
         const {email, password, firstName, lastName, phone, company, deviceId} = input;
-
+        
+        console.log('2. Checking existing user');
         const existingUser = await prisma.users.findUnique({where: {email}});
         if (existingUser) {
             throw new BadRequestError({
@@ -33,20 +36,37 @@ class AuthService {
             });
         }
 
+        console.log('3. Creating password hash');
         const passwordHash = await hashPassword(password);
 
+        console.log('4. Starting transaction');
         const {user, accessToken, refreshToken} = await prisma.$transaction(async (tx) => {
+            console.log('4a. Creating user');
             const user = await tx.users.create({
                 data: {email, firstName, lastName, phone, company},
             });
+            console.log('4b. User created:', user.id);
 
+            console.log('4c. Creating userAuth');
             await tx.userAuths.create({
                 data: {userId: user.id, passwordHash, recognisedDevices: deviceId},
             });
 
-            const accessToken = generateJwtToken({userId: user.id, email: user.email, deviceId, tokenType: TOKEN_TYPE.AUTH_TOKEN});
-            const refreshToken = generateJwtToken({userId: user.id, email: user.email, deviceId, tokenType: TOKEN_TYPE.REFRESH_TOKEN});
+            console.log('4d. Generating tokens');
+            const accessToken = generateJwtToken({
+                userId: user.id,
+                email: user.email,
+                deviceId,
+                tokenType: TOKEN_TYPE.AUTH_TOKEN
+            });
+            const refreshToken = generateJwtToken({
+                userId: user.id,
+                email: user.email,
+                deviceId,
+                tokenType: TOKEN_TYPE.REFRESH_TOKEN
+            });
 
+            console.log('4e. Creating userTokens');
             await tx.userTokens.create({
                 data: {userId: user.id, deviceId, accessToken, refreshToken},
             });
@@ -54,6 +74,7 @@ class AuthService {
             return {user, accessToken, refreshToken};
         });
 
+        console.log('5. Signup successful');
         return {
             success: true,
             message: "Signup successful",
@@ -63,11 +84,14 @@ class AuthService {
                 user,
             },
         };
+    } catch (error) {
+        console.error('Signup error details:', error);
+        throw error;
     }
+}
     public static async login(input: LoginDTO): Promise<IService> {
         const {email, password, deviceId} = input;
 
-        // 1. Verify user exists (clean query: no relation hydration here)
         const user = await prisma.users.findUnique({
             where: {email},
         });
@@ -97,7 +121,6 @@ class AuthService {
             });
         }
 
-        // 3. Verify password
         const passwordMatch = await verifyPassword(password, userAuth.passwordHash);
         if (!passwordMatch) {
             throw new UnAuthorizedError({
@@ -106,7 +129,6 @@ class AuthService {
             });
         }
 
-        // 4. Check if deviceId is part of the recognised devices
         const isRecognisedDevice = userAuth.recognisedDevices === deviceId;
         if (!isRecognisedDevice) {
             const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -115,7 +137,7 @@ class AuthService {
             await prisma.userVerifications.create({
                 data: {userId: user.id, token: otp, deviceId, expiresAt},
             });
-
+        
             // TODO: send OTP to user.email via email service
 
             throw new UnAuthorizedError({
@@ -124,13 +146,23 @@ class AuthService {
             });
         }
 
-        // 5. Device recognised — issue fresh tokens
-        const accessToken = generateJwtToken({userId: user.id, email: user.email, deviceId, tokenType: TOKEN_TYPE.AUTH_TOKEN});
-        const refreshToken = generateJwtToken({userId: user.id, email: user.email, deviceId, tokenType: TOKEN_TYPE.REFRESH_TOKEN});
+        const accessToken = generateJwtToken({
+            userId: user.id,
+            email: user.email,
+            deviceId,
+            tokenType: TOKEN_TYPE.AUTH_TOKEN
+        });
+        const refreshToken = generateJwtToken({
+            userId: user.id,
+            email: user.email,
+            deviceId,
+            tokenType: TOKEN_TYPE.REFRESH_TOKEN
+        });
 
-        await prisma.userTokens.updateMany({
-            where: {userId: user.id, deviceId},
-            data: {accessToken, refreshToken},
+
+         await prisma.userTokens.updateMany({
+            where: {userId: user.id},
+            data: { accessToken, refreshToken, deviceId },
         });
 
         return {
@@ -263,7 +295,7 @@ class AuthService {
         }
     }
     public static async resetPassword(input: ResetPasswordDTO): Promise<IService> {
-        const { token, newPassword, deviceId } = input;
+        const { token, newPassword } = input;
 
         // Find the token in database
         const tokenRecord = await prisma.userTokens.findFirst({
@@ -360,6 +392,8 @@ class AuthService {
             }
         }
     }
+
+    
 }
 
 

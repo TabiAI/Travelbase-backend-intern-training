@@ -1,36 +1,37 @@
-import { FastifyRequest, FastifyReply } from "fastify";
-import userService from "../services/user.service";
-import { UnAuthorizedError, BadRequestError, CustomErrorCode } from "../exceptions";
+import {FastifyReply, FastifyRequest} from "fastify";
+import UserService from "../services/user.service";
+import {sendResponse} from "../helpers";
+import {BadRequestError, CustomErrorCode, UnAuthorizedError} from "../exceptions";
 
-export class UserController {
-    
-    // Get current user's profile
-    static getProfile = async (request: FastifyRequest, reply: FastifyReply) => {
-        const userId = (request.headers as Record<string, string>)['x-user-id'];
+//UserService.initialize();
+
+class UserController {
+    static initialize() {
+        new UserController();
+    }
+
+    // GET current user profile - Using middleware
+    public static async getProfile(request: FastifyRequest, reply: FastifyReply) {
+        const userId = (request.headers as any)['x-user-id'] || (request as any).user?.id;
         
         if (!userId) {
             throw new UnAuthorizedError({
-                msg: "User ID not found in request",
+                msg: "User not authenticated",
                 errorCode: CustomErrorCode.AUTH_INVALID
             });
         }
         
-        const result = await userService.getProfile(userId);
-        
-        return reply.status(200).send({
-            success: true,
-            message: "Profile retrieved successfully",
-            data: result.data
-        });
+        const response = await UserService.getUserById(userId);
+        return sendResponse(reply, response);
     }
 
-    // Update current user's profile
-    static updateProfile = async (request: FastifyRequest, reply: FastifyReply) => {
-        const userId = (request.headers as Record<string, string>)['x-user-id'];
+    // UPDATE user profile
+    public static async updateProfile(request: FastifyRequest, reply: FastifyReply) {
+        const userId = (request as any).user?.id;
         
         if (!userId) {
             throw new UnAuthorizedError({
-                msg: "User ID not found in request",
+                msg: "User not authenticated",
                 errorCode: CustomErrorCode.AUTH_INVALID
             });
         }
@@ -43,34 +44,26 @@ export class UserController {
             bio?: string;
         };
         
-        const result = await userService.updateProfile(userId, updateData);
-        
-        return reply.status(200).send({
-            success: true,
-            message: "Profile updated successfully",
-            data: result.data
-        });
+        const response = await UserService.updateUserProfile(userId, updateData);
+        return sendResponse(reply, response);
     }
 
-    // Get profile by ID (admin access)
-    static getProfileById = async (request: FastifyRequest, reply: FastifyReply) => {
+    // GET user by ID (admin access)
+    public static async getProfileById(request: FastifyRequest, reply: FastifyReply) {
         const { id } = request.params as { id: string };
         
         if (!id) {
-            throw new BadRequestError({
-                msg: "User ID is required",
-                errorCode: CustomErrorCode.INVALID_INPUT
-            });
+            return sendResponse(reply, {
+                success: false,
+                message: "User ID is required",
+                error: "MISSING_ID"
+            }, 400);
         }
         
-        const result = await userService.getProfile(id);
-        
-        return reply.status(200).send({
-            success: true,
-            message: "Profile retrieved successfully",
-            data: result.data
-        });
+        const response = await UserService.getUserById(id);
+        return sendResponse(reply, response);
     }
 }
 
-export default UserController;
+export const UserCtrl = UserController;
+export { UserCtrl as UserController };

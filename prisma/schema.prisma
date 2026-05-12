@@ -26,9 +26,8 @@ model Users {
   updatedAt         DateTime            @updatedAt
   userAuths         UserAuths?
   UserVerifications UserVerifications[]
-  UserTokens        UserTokens[]
+  UserTokens        UserTokens?
 }
-
 
 model UserAuths {
   id                String   @id @default(uuid())
@@ -39,7 +38,6 @@ model UserAuths {
   updatedAt         DateTime @updatedAt
   user              Users    @relation(fields: [userId], references: [id])
 }
-
 
 model UserVerifications {
   id        String   @id @default(uuid())
@@ -54,7 +52,7 @@ model UserVerifications {
 
 model UserTokens {
   id           String   @id @default(uuid())
-  userId       String
+  userId       String @unique
   resetPasswordToken     String?
   resetPasswordExpires   DateTime?
   refreshToken String
