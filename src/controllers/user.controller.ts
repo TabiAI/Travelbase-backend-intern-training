@@ -1,11 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import UserService from "../services/user.service";
+import AuthService from "../services/auth.service";
 import { sendResponse } from "../helpers";
-//import { BadRequestError, CustomErrorCode, UnAuthorizedError } from "../exceptions";
-//import {sendResponse} from "../helpers";
-import {ChangePasswordRequest} from "../schemas";
-
-UserService.initialize();
 
 class UserController {
     static initialize() {
@@ -15,7 +11,7 @@ class UserController {
     // GET current user profile
     public static async getProfile(request: FastifyRequest, reply: FastifyReply) {
         try {
-            // Get user ID from middleware OR header
+            // Try to get user ID from middleware OR from header
             const userId = (request as any).user?.id || (request.headers as any)['x-user-id'];
             
             if (!userId) {
@@ -50,7 +46,6 @@ class UserController {
     // UPDATE user profile
     public static async updateProfile(request: FastifyRequest, reply: FastifyReply) {
         try {
-            // Get user ID from middleware OR header
             const userId = (request as any).user?.id || (request.headers as any)['x-user-id'];
             
             if (!userId) {
@@ -82,6 +77,41 @@ class UserController {
                 });
             }
             
+            return reply.status(500).send({
+                success: false,
+                message: "Internal server error",
+                error: error.message
+            });
+        }
+    }
+
+    // Change password
+    public static async changePassword(request: FastifyRequest, reply: FastifyReply) {
+        try {
+            const userId = (request as any).user?.id || (request.headers as any)['x-user-id'];
+            
+            if (!userId) {
+                return reply.status(401).send({
+                    success: false,
+                    message: "User not authenticated",
+                    error: "UNAUTHORIZED"
+                });
+            }
+            
+            const { currentPassword, newPassword } = request.body as {
+                currentPassword: string;
+                newPassword: string;
+            };
+            
+            const response = await AuthService.changePassword(userId, {
+                currentPassword,
+                newPassword,
+                deviceId: request.headers['x-device-id'] as string
+            });
+            
+            return sendResponse(reply, response);
+        } catch (error: any) {
+            console.error('Change password error:', error);
             return reply.status(500).send({
                 success: false,
                 message: "Internal server error",
@@ -122,17 +152,6 @@ class UserController {
                 error: error.message
             });
         }
-    }
-
-    // CHANGE user password
-    public static async changePassword(request: FastifyRequest, reply: FastifyReply) {
-        const {currentPassword, newPassword} = ChangePasswordRequest.parse(request.body ?? {});
-        const result = await UserService.changePassword(request.user!.id, {
-            currentPassword,
-            newPassword,
-            deviceId: <string>request.headers['x-device-id'],
-        });
-        return sendResponse(reply, result);
     }
 }
 
