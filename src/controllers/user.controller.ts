@@ -2,6 +2,10 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import UserService from "../services/user.service";
 import { sendResponse } from "../helpers";
 //import { BadRequestError, CustomErrorCode, UnAuthorizedError } from "../exceptions";
+//import {sendResponse} from "../helpers";
+import {ChangePasswordRequest} from "../schemas";
+
+UserService.initialize();
 
 class UserController {
     static initialize() {
@@ -118,6 +122,17 @@ class UserController {
                 error: error.message
             });
         }
+    }
+
+    // CHANGE user password
+    public static async changePassword(request: FastifyRequest, reply: FastifyReply) {
+        const {currentPassword, newPassword} = ChangePasswordRequest.parse(request.body ?? {});
+        const result = await UserService.changePassword(request.user!.id, {
+            currentPassword,
+            newPassword,
+            deviceId: <string>request.headers['x-device-id'],
+        });
+        return sendResponse(reply, result);
     }
 }
 

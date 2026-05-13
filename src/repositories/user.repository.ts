@@ -1,6 +1,24 @@
 import { prisma } from "../lib/db";
 
 export class UserRepository {
+    static async findById(id: string) {
+        return prisma.users.findUnique({where: {id}});
+    }
+
+    static async findByEmail(email: string) {
+        return prisma.users.findUnique({where: {email}});
+    }
+
+    static async findAuthByUserId(userId: string) {
+        return prisma.userAuths.findUnique({where: {userId}});
+    }
+
+    static async updatePasswordHash(userId: string, passwordHash: string) {
+        return prisma.userAuths.update({
+            where: {userId},
+            data: {passwordHash},
+        });
+    }
     
     async findById(userId: string) {
         return await prisma.users.findUnique({
@@ -47,4 +65,7 @@ export class UserRepository {
     }
 }
 
-export default new UserRepository();
+
+
+
+export default UserRepository;

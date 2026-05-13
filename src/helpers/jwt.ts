@@ -4,6 +4,7 @@ import path from 'path';
 
 // Load .env from root
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+//import {config} from '../config';
 
 export enum TOKEN_TYPE {
     AUTH_TOKEN = 'AUTH_TOKEN',
