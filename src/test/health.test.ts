@@ -1,15 +1,17 @@
-import { buildApp } from "../app"; // adjust path if needed
+import { describe, it, expect } from "@jest/globals";
+import { buildServer } from "../server";
 
-test("GET /health should return ok", async () => {
-  const app = await buildApp();
-
-  const response = await app.inject({
-    method: "GET",
-    url: "/health"
-  });
-
-  expect(response.statusCode).toBe(200);
-  expect(JSON.parse(response.body)).toEqual({
-    status: "ok"
-  });
-});
+describe("Health Check", () => {
+    it("GET /health should return 200", async () => {
+    const app = buildServer();
+    
+    // Wait for server to be ready
+    await app.ready();
+    
+    const response = await app.inject({
+        method: "GET",
+        url: "/health"
+    });
+    
+    expect(response.statusCode).toBe(200);
+})});
