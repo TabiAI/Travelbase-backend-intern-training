@@ -10,9 +10,9 @@ import {
     VerifyDeviceChangeOTPDTO
 } from "../interfaces";
 
-import {prisma} from "../lib/db";
-import {BadRequestError, CustomErrorCode, NotFoundError} from "../exceptions";
-// Souce of Truth -> Database
+import { prisma } from "../lib/db";
+import { BadRequestError, CustomErrorCode, UnAuthorizedError } from "../exceptions";
+import { generateJwtToken, TOKEN_TYPE, hashPassword, verifyPassword } from "../helpers";
 
 class AuthService {
 
@@ -21,52 +21,129 @@ class AuthService {
     }
 
     public static async signup(input: SignupDTO): Promise<IService> {
+        const { email, password, firstName, lastName, phone, company, deviceId } = input;
 
-        const {email} = input;
-        const existingUser = await prisma.users.findUnique({
-            where: {
-                email
-            }
-        });
-
+        const existingUser = await prisma.users.findUnique({ where: { email } });
         if (existingUser) {
             throw new BadRequestError({
                 msg: "Account with the email already exists",
                 errorCode: CustomErrorCode.DUPLICATE_RESOURCE
             });
         }
-        // internals of this is that, const allocate a fixed memory space in the heap for the object we aare assigning it to.
 
-        // let and var are different from const in that, they can be re-assigned to a different value or object, while const cannot be re-assigned. However, the properties of an object assigned to a const variable can still be modified.
+        const passwordHash = await hashPassword(password);
+
+        const { user, accessToken, refreshToken } = await prisma.$transaction(async (tx) => {
+            const user = await tx.users.create({
+                data: { email, firstName, lastName, phone, company },
+            });
+
+            await tx.userAuths.create({
+                data: { userId: user.id, passwordHash, recognisedDevices: deviceId },
+            });
+
+            const accessToken = generateJwtToken({
+                userId: user.id,
+                email: user.email,
+                deviceId,
+                tokenType: TOKEN_TYPE.AUTH_TOKEN
+            });
+            const refreshToken = generateJwtToken({
+                userId: user.id,
+                email: user.email,
+                deviceId,
+                tokenType: TOKEN_TYPE.REFRESH_TOKEN
+            });
+
+            await tx.userTokens.create({
+                data: { userId: user.id, deviceId, accessToken, refreshToken },
+            });
+
+            return { user, accessToken, refreshToken };
+        });
 
         return {
             success: true,
             message: "Signup successful",
-            data: {}
-        }
+            data: {
+                accessToken,
+                refreshToken,
+                user,
+            },
+        };
     }
 
     public static async login(input: LoginDTO): Promise<IService> {
+        const { email, password, deviceId } = input;
 
-        //check if the user email is valid and verify the user exist in the database
-        // verify they are using the right password...
-        // verify the deviceId is a recognised device, if not,
-        // we send an email OTP to the user email to let them know that an
-        // unrecognised device is trying to access their account from a location
-        // that is not recognised.
-        // if the device is not recognised, we block the user from logging in and sent them email OTP to verify their identity.
+        const user = await prisma.users.findUnique({ where: { email } });
+        if (!user) {
+            throw new UnAuthorizedError({
+                msg: "Invalid email or password",
+                errorCode: CustomErrorCode.AUTH_INVALID,
+            });
+        }
 
-        // if all are true, we generate a JWT tokens and return it to the client.
+        const userAuth = await prisma.userAuths.findFirst({
+            where: { userId: user.id },
+        });
+        if (!userAuth) {
+            throw new UnAuthorizedError({
+                msg: "Invalid email or password",
+                errorCode: CustomErrorCode.AUTH_INVALID,
+            });
+        }
+
+        const passwordMatch = await verifyPassword(password, userAuth.passwordHash);
+        if (!passwordMatch) {
+            throw new UnAuthorizedError({
+                msg: "Invalid email or password",
+                errorCode: CustomErrorCode.AUTH_INVALID,
+            });
+        }
+
+        const isRecognisedDevice = userAuth.recognisedDevices === deviceId;
+        if (!isRecognisedDevice) {
+            const otp = Math.floor(100000 + Math.random() * 900000).toString();
+            const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+            await prisma.userVerifications.create({
+                data: { userId: user.id, token: otp, deviceId, expiresAt },
+            });
+
+            throw new UnAuthorizedError({
+                msg: "Unrecognised device. A verification code has been sent to your email.",
+                errorCode: CustomErrorCode.AUTH_BLOCKED,
+            });
+        }
+
+        const accessToken = generateJwtToken({
+            userId: user.id,
+            email: user.email,
+            deviceId,
+            tokenType: TOKEN_TYPE.AUTH_TOKEN
+        });
+        const refreshToken = generateJwtToken({
+            userId: user.id,
+            email: user.email,
+            deviceId,
+            tokenType: TOKEN_TYPE.REFRESH_TOKEN
+        });
+
+        await prisma.userTokens.updateMany({
+            where: { userId: user.id, deviceId },
+            data: { accessToken, refreshToken },
+        });
 
         return {
             success: true,
             message: "Login successful",
             data: {
-                accessToken: "",
-                refreshToken: "",
-                user: {}
-            }
-        }
+                accessToken,
+                refreshToken,
+                user,
+            },
+        };
     }
 
     public static async verifyDeviceChange(input: VerifyDeviceChangeOTPDTO): Promise<IService> {
@@ -80,15 +157,12 @@ class AuthService {
             }
         }
     }
+
     public static async forgotPassword(input: ForgotPasswordDTO): Promise<IService> {
         const { email, deviceId } = input;
         
-        // Check if user exists
-        const user = await prisma.users.findUnique({
-            where: { email }
-        });
+        const user = await prisma.users.findUnique({ where: { email } });
         
-        // For security, don't reveal if email exists or not
         if (!user) {
             return {
                 success: true,
@@ -96,27 +170,35 @@ class AuthService {
             }
         }
         
-        // Generate a secure random token
         const resetToken = crypto.randomBytes(32).toString('hex');
-        
-        // Token expires in 1 hour
         const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
         
-        // Store token in database
-        await prisma.userToken.upsert({
-            where: { userId: user.id },
-            update: {
-                resetPasswordToken: resetToken,
-                resetPasswordExpires: expiresAt,
-            },
-            create: {
-                userId: user.id,
-                resetPasswordToken: resetToken,
-                resetPasswordExpires: expiresAt,
-            },
+        // Use userTokens table (plural)
+        const existingToken = await prisma.userTokens.findFirst({
+            where: { userId: user.id, deviceId }
         });
+
+        if (existingToken) {
+            await prisma.userTokens.update({
+                where: { id: existingToken.id },
+                data: {
+                    resetPasswordToken: resetToken,
+                    resetPasswordExpires: expiresAt,
+                }
+            });
+        } else {
+            await prisma.userTokens.create({
+                data: {
+                    userId: user.id,
+                    deviceId,
+                    resetPasswordToken: resetToken,
+                    resetPasswordExpires: expiresAt,
+                    refreshToken: crypto.randomBytes(40).toString('hex'),
+                    accessToken: crypto.randomBytes(32).toString('hex')
+                }
+            });
+        }
         
-        // Log token for testing (remove in production)
         console.log(`\n 🔐 RESET TOKEN FOR ${email}: ${resetToken}\n`);
         
         return {
@@ -124,23 +206,18 @@ class AuthService {
             message: "If an account exists, a password reset link has been sent to your email",
         }
     }
+
     public static async resetPassword(input: ResetPasswordDTO): Promise<IService> {
         const { token, newPassword, deviceId } = input;
         
-        // Find the token in database
-        const tokenRecord = await prisma.userToken.findFirst({
+        const tokenRecord = await prisma.userTokens.findFirst({
             where: {
                 resetPasswordToken: token,
-                resetPasswordExpires: {
-                    gt: new Date(),
-                },
+                resetPasswordExpires: { gt: new Date() },
             },
-            include: {
-                user: true,
-            },
+            include: { user: true },
         });
         
-        // Check if token exists and is valid
         if (!tokenRecord) {
             throw new BadRequestError({
                 msg: "Invalid or expired reset token",
@@ -148,19 +225,16 @@ class AuthService {
             });
         }
         
-        // Hash the new password
         const saltRounds = 10;
         const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
         
-        // Update user's password
-        await prisma.users.update({
-            where: { id: tokenRecord.userId },
-            data: { password: hashedPassword },
+        await prisma.userAuths.updateMany({
+            where: { userId: tokenRecord.user.id },
+            data: { passwordHash: hashedPassword },
         });
         
-        // Delete the used token
-        await prisma.userToken.update({
-            where: { userId: tokenRecord.userId },
+        await prisma.userTokens.update({
+            where: { id: tokenRecord.id },
             data: {
                 resetPasswordToken: null,
                 resetPasswordExpires: null,
@@ -173,10 +247,6 @@ class AuthService {
         }
     }
 
-
-
-    // Refresh Tokens -> These are tokens use in the background to keep the user logged in without them having to re-enter their credentials.
-    // They are usually long-lived and can be used to obtain new access tokens when the old ones expire.
     public static async refreshToken(input: RefreshTokenDTO): Promise<IService> {
         return {
             success: true,
@@ -188,9 +258,6 @@ class AuthService {
             }
         }
     }
-
-   
 }
-
 
 export default AuthService;
