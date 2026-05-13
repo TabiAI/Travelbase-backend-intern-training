@@ -37,7 +37,7 @@ export function generateJwtToken(payload: TokenPayload): string {
 
 export function verifyToken(token: string): TokenPayload {
     if (!JWT_SECRET) {
-        throw new Error('JWT_SECRET is not defined in config');
+        throw new Error('JWT_SECRET is not defined');
     }
     return jwt.verify(token, JWT_SECRET) as TokenPayload;
 }

@@ -18,6 +18,10 @@ model Users {
   email             String              @unique
   firstName         String?
   lastName          String?
+  phone             String?        // ← ADD THIS
+  company           String?        // ← ADD THIS
+  profilePicture    String?        // ← ADD THIS
+  bio               String?        // ← ADD THIS
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
   UserAuths         UserAuths[]
