@@ -5,7 +5,7 @@ import {healthRoutes, AuthRouter, userRoutes} from './routes';
 import {config} from "./config";
 import {ALLOWED_HEADERS, ALLOWED_METHODS} from "./enums";
 import {fastifyErrorHandler} from "./exceptions";
-import {requireAuthHook, requireDeviceHook} from "./middlewares";
+//import {requireAuthHook, requireDeviceHook} from "./middlewares";
 
 export function buildServer() {
     const app = Fastify({logger: true});
