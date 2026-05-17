@@ -30,18 +30,13 @@ export function generateJwtToken(payload: TokenPayload): string {
         throw new Error('JWT_SECRET is not defined. Please check your .env file');
     }
     
-    // Remove tokenType from payload
-    const { tokenType, ...cleanPayload } = payload;
-    
-    // Type assertion for expiresIn
-    const options = { expiresIn: ACCESS_EXPIRES };
-    
+    // KEEP tokenType - don't remove it
     if (payload.tokenType === TOKEN_TYPE.AUTH_TOKEN) {
-        return jwt.sign(cleanPayload, JWT_SECRET, { expiresIn: ACCESS_EXPIRES } as jwt.SignOptions);
+        return jwt.sign(payload, JWT_SECRET, { expiresIn: ACCESS_EXPIRES } as jwt.SignOptions);
     } else if (payload.tokenType === TOKEN_TYPE.REFRESH_TOKEN) {
-        return jwt.sign(cleanPayload, JWT_SECRET, { expiresIn: REFRESH_EXPIRES } as jwt.SignOptions);
+        return jwt.sign(payload, JWT_SECRET, { expiresIn: REFRESH_EXPIRES } as jwt.SignOptions);
     } else if (payload.tokenType === TOKEN_TYPE.RESET_TOKEN) {
-        return jwt.sign(cleanPayload, JWT_SECRET, { expiresIn: '1h' } as jwt.SignOptions);
+        return jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' } as jwt.SignOptions);
     }
     throw new Error('Invalid token type');
 }

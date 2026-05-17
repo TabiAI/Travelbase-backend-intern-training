@@ -120,8 +120,6 @@ class AuthService {
         });
     }
 
-    // Device check removed - no OTP for now
-
     const accessToken = generateJwtToken({
         userId: user.id,
         email: user.email,
@@ -135,9 +133,18 @@ class AuthService {
         tokenType: TOKEN_TYPE.REFRESH_TOKEN
     });
 
-    await prisma.userTokens.updateMany({
-        where: { userId: user.id, deviceId },
-        data: { accessToken, refreshToken },
+    // FIXED: Use deleteMany + create instead of updateMany
+    await prisma.userTokens.deleteMany({
+        where: { userId: user.id, deviceId: deviceId },
+    });
+
+    await prisma.userTokens.create({
+        data: {
+            userId: user.id,
+            deviceId: deviceId,
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+        },
     });
 
     return {
