@@ -1,4 +1,5 @@
 import crypto from "crypto";
+//@ts-ignore
 import bcrypt from "bcrypt";
 import {
     ForgotPasswordDTO,
