@@ -8,10 +8,11 @@ import {
 } from "../interfaces";
 
 import {prisma} from "../lib/db";
-import {BadRequestError, CustomErrorCode} from "../exceptions";
+import {BadRequestError, CustomErrorCode, UnAuthorizedError} from "../exceptions";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "../helpers/jwtHelper";
+import {generateJwtToken, TOKEN_TYPE, hashPassword, verifyPassword} from "../helpers";
 
-// Souce of Truth -> Database
+// Source of Truth -> Database
 
 class AuthService {
 
@@ -20,52 +21,135 @@ class AuthService {
     }
 
     public static async signup(input: SignupDTO): Promise<IService> {
+        const {email, password, firstName, lastName, phone, company, deviceId} = input;
 
-        const {email} = input;
-        const existingUser = await prisma.users.findUnique({
-            where: {
-                email
-            }
-        });
-
+        const existingUser = await prisma.users.findUnique({where: {email}});
         if (existingUser) {
             throw new BadRequestError({
                 msg: "Account with the email already exists",
                 errorCode: CustomErrorCode.DUPLICATE_RESOURCE
             });
         }
-        // internals of this is that, const allocate a fixed memory space in the heap for the object we aare assigning it to.
 
-        // let and var are different from const in that, they can be re-assigned to a different value or object, while const cannot be re-assigned. However, the properties of an object assigned to a const variable can still be modified.
+        const passwordHash = await hashPassword(password);
+
+        const {user, accessToken, refreshToken} = await prisma.$transaction(async (tx) => {
+            const user = await tx.users.create({
+                data: {email, firstName, lastName, phone, company},
+            });
+
+            await tx.userAuths.create({
+                data: {userId: user.id, passwordHash, recognisedDevices: [deviceId]},
+            });
+
+            const accessToken = generateJwtToken({
+                userId: user.id,
+                email: user.email,
+                deviceId,
+                tokenType: TOKEN_TYPE.AUTH_TOKEN
+            });
+            const refreshToken = generateJwtToken({
+                userId: user.id,
+                email: user.email,
+                deviceId,
+                tokenType: TOKEN_TYPE.REFRESH_TOKEN
+            });
+
+            await tx.userTokens.create({
+                data: {userId: user.id, deviceId, accessToken, refreshToken},
+            });
+
+            return {user, accessToken, refreshToken};
+        });
 
         return {
             success: true,
             message: "Signup successful",
-            data: {}
-        }
+            data: {
+                accessToken,
+                refreshToken,
+                user,
+            },
+        };
     }
 
     public static async login(input: LoginDTO): Promise<IService> {
+        const {email, password, deviceId} = input;
 
-        //check if the user email is valid and verify the user exist in the database
-        // verify they are using the right password...
-        // verify the deviceId is a recognised device, if not,
-        // we send an email OTP to the user email to let them know that an
-        // unrecognised device is trying to access their account from a location
-        // that is not recognised.
-        // if the device is not recognised, we block the user from logging in and sent them email OTP to verify their identity.
+        const user = await prisma.users.findUnique({
+            where: {email},
+        });
+        if (!user) {
+            throw new UnAuthorizedError({
+                msg: "Invalid email or password",
+                errorCode: CustomErrorCode.AUTH_INVALID,
+            });
+        }
 
-        // if all are true, we generate a JWT tokens and return it to the client.
+        const userAuth = await prisma.userAuths.findFirst({
+            where: {userId: user.id},
+        });
+        if (!userAuth) {
+            throw new UnAuthorizedError({
+                msg: "Invalid email or password",
+                errorCode: CustomErrorCode.AUTH_INVALID,
+            });
+        }
+
+        const passwordMatch = await verifyPassword(password, userAuth.passwordHash);
+        if (!passwordMatch) {
+            throw new UnAuthorizedError({
+                msg: "Invalid email or password",
+                errorCode: CustomErrorCode.AUTH_INVALID,
+            });
+        }
+
+        const isRecognisedDevice = userAuth.recognisedDevices.includes(deviceId);
+        if (!isRecognisedDevice) {
+            const otp = Math.floor(100000 + Math.random() * 900000).toString();
+            const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+            await prisma.userVerifications.create({
+                data: {userId: user.id, token: otp, deviceId, expiresAt},
+            });
+
+            // TODO: send OTP to user.email via email service
+
+            throw new UnAuthorizedError({
+                msg: "Unrecognised device. A verification code has been sent to your email.",
+                errorCode: CustomErrorCode.AUTH_BLOCKED,
+            });
+        }
+
+        const accessToken = generateJwtToken({
+            userId: user.id,
+            email: user.email,
+            deviceId,
+            tokenType: TOKEN_TYPE.AUTH_TOKEN
+        });
+        const refreshToken = generateJwtToken({
+            userId: user.id,
+            email: user.email,
+            deviceId,
+            tokenType: TOKEN_TYPE.REFRESH_TOKEN
+        });
+
+
+        await prisma.userTokens.updateMany({
+            where: {userId: user.id, deviceId},
+            data: {accessToken, refreshToken},
+        });
 
         return {
             success: true,
             message: "Login successful",
             data: {
-                accessToken: "",
-                refreshToken: "",
-                user: {}
-            }
-        }
+                accessToken,
+                refreshToken,
+                user,
+            },
+        };
+
     }
 
     public static async verifyDeviceChange(input: VerifyDeviceChangeOTPDTO): Promise<IService> {
@@ -169,6 +253,9 @@ class AuthService {
         return {
             success: true,
             message: "Password reset link sent to your email",
+            data: {
+                confirmationToken: "" // a jwt token that will used an header to verify the reset is coming from our server initiated request
+            }
         }
     }
 
