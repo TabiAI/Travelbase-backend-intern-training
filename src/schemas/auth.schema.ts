@@ -14,3 +14,13 @@ export const SignupRequest = z.object({
     company: z.string().min(3).max(200),
 });
 
+export const VerifyDeviceChangeRequest = z.object({
+    deviceId: z.string().min(1).max(255),
+    otp: z.string().min(6).max(6),
+});
+
+export const RefreshTokenRequest = z.object({
+    refreshToken: z.string().min(1).max(255),
+    deviceId: z.string().min(1).max(255),
+
+})

@@ -8,9 +8,8 @@ import {
 } from "../interfaces";
 
 import {prisma} from "../lib/db";
-import {BadRequestError, CustomErrorCode, UnAuthorizedError} from "../exceptions";
-import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "../helpers/jwtHelper";
-import {generateJwtToken, TOKEN_TYPE, hashPassword, verifyPassword} from "../helpers";
+import {BadRequestError, CustomErrorCode, NotFoundError, UnAuthorizedError} from "../exceptions";
+import {generateJwtToken, hashPassword, TOKEN_TYPE, verifyPassword, verifyToken} from "../helpers";
 
 // Source of Truth -> Database
 
@@ -153,101 +152,120 @@ class AuthService {
     }
 
     public static async verifyDeviceChange(input: VerifyDeviceChangeOTPDTO): Promise<IService> {
-    const { otp, deviceId } = input;
+        const {otp, deviceId} = input;
 
-    // 1. Find the OTP record matching the otp and deviceId
-    const verification = await prisma.userVerifications.findFirst({
-        where: { token: otp, deviceId }
-    });
-
-    // 2. If not found, the OTP is invalid
-    if (!verification) {
-        throw new BadRequestError({
-            msg: "Invalid OTP",
-            errorCode: CustomErrorCode.AUTH_INVALID
+        const verification = await prisma.userVerifications.findFirst({
+            where: {token: otp, deviceId}
         });
+
+        if (!verification) {
+            throw new BadRequestError({
+                msg: "Invalid OTP",
+                errorCode: CustomErrorCode.AUTH_INVALID
+            });
+        }
+
+        if (verification.expiresAt < new Date()) {
+            await prisma.userVerifications.delete({where: {id: verification.id}});
+            throw new BadRequestError({
+                msg: "OTP has expired",
+                errorCode: CustomErrorCode.AUTH_EXPIRED
+            });
+        }
+
+        await prisma.userVerifications.delete({where: {id: verification.id}});
+
+        const user = await prisma.users.findUnique({where: {id: verification.userId}});
+        if (!user) {
+            throw new NotFoundError({msg: "user not found", errorCode: CustomErrorCode.RESOURCE_NOT_FOUND})
+        }
+
+        const accessToken = generateJwtToken({
+            userId: user.id,
+            tokenType: TOKEN_TYPE.AUTH_TOKEN,
+            email: user.email,
+            deviceId
+        });
+        const refreshToken = generateJwtToken({
+            userId: user.id,
+            tokenType: TOKEN_TYPE.REFRESH_TOKEN,
+            email: user.email,
+            deviceId
+        });
+
+        await prisma.userTokens.create({
+            data: {userId: verification.userId, accessToken, refreshToken, deviceId}
+        });
+
+        return {
+            success: true,
+            message: "Device change verified",
+            data: {accessToken, refreshToken, user}
+        };
     }
 
-    // 3. If found but expired, delete and throw error
-    if (verification.expiresAt < new Date()) {
-        await prisma.userVerifications.delete({ where: { id: verification.id } });
-        throw new BadRequestError({
-            msg: "OTP has expired",
-            errorCode: CustomErrorCode.AUTH_EXPIRED
-        });
-    }
 
-    // 4. Valid — delete the OTP so it can't be reused
-    await prisma.userVerifications.delete({ where: { id: verification.id } });
-
-    // 5. Fetch the user
-    const user = await prisma.users.findUnique({ where: { id: verification.userId } });
-
-    // 6. Generate tokens
-    const accessToken = generateAccessToken(verification.userId);
-    const refreshToken = generateRefreshToken(verification.userId);
-
-    // 7. Save the tokens tied to this user and device
-    await prisma.userTokens.create({
-        data: { userId: verification.userId, accessToken, refreshToken, deviceId }
-    });
-
-    return {
-        success: true,
-        message: "Device change verified",
-        data: { accessToken, refreshToken, user }
-    };
-}
-
-
-    // Refresh Tokens -> These are tokens use in the background to keep the user logged in without them having to re-enter their credentials.
-    // They are usually long-lived and can be used to obtain new access tokens when the old ones expire.
     public static async refreshToken(input: RefreshTokenDTO): Promise<IService> {
-    const { refreshToken, deviceId } = input;
+        const {refreshToken, deviceId} = input;
 
-    // 1. Find the token record matching the refresh token
-    const tokenRecord = await prisma.userTokens.findFirst({
-        where: { refreshToken }
-    });
-
-    // 2. If not found, session doesn't exist
-    if (!tokenRecord) {
-        throw new BadRequestError({
-            msg: "Session expired, please login again",
-            errorCode: CustomErrorCode.SESSION_EXPIRED
+        const tokenRecord = await prisma.userTokens.findFirst({
+            where: {refreshToken}
         });
-    }
 
-    // 3. Check the request is coming from the same device the token was issued to
-    if (tokenRecord.deviceId !== deviceId) {
-        throw new BadRequestError({
-            msg: "Device mismatch detected",
-            errorCode: CustomErrorCode.AUTH_BLOCKED
+
+        if (!tokenRecord) {
+            throw new BadRequestError({
+                msg: "Session expired, please login again",
+                errorCode: CustomErrorCode.SESSION_EXPIRED
+            });
+        }
+
+        if (tokenRecord.deviceId !== deviceId) {
+            throw new BadRequestError({
+                msg: "Device mismatch detected",
+                errorCode: CustomErrorCode.AUTH_BLOCKED
+            });
+        }
+
+        const user = await prisma.users.findUnique({where: {id: tokenRecord.userId}});
+
+        if (!user) {
+            throw new NotFoundError({msg: "user not found", errorCode: CustomErrorCode.RESOURCE_NOT_FOUND})
+        }
+
+
+        const tokenPayload = verifyToken(refreshToken);
+        if (!tokenPayload || tokenPayload.tokenType !== TOKEN_TYPE.REFRESH_TOKEN || tokenPayload.deviceId !== deviceId) {
+            throw new BadRequestError({
+                msg: "Invalid token",
+                errorCode: CustomErrorCode.AUTH_INVALID
+            });
+        }
+
+        const newAccessToken = generateJwtToken({
+            userId: user.id,
+            tokenType: TOKEN_TYPE.AUTH_TOKEN,
+            email: user.email,
+            deviceId
         });
+        const newRefreshToken = generateJwtToken({
+            userId: user.id,
+            tokenType: TOKEN_TYPE.REFRESH_TOKEN,
+            email: user.email,
+            deviceId
+        });
+
+        await prisma.userTokens.update({
+            where: {id: tokenRecord.id},
+            data: {accessToken: newAccessToken, refreshToken: newRefreshToken}
+        });
+
+        return {
+            success: true,
+            message: "Token refreshed",
+            data: {accessToken: newAccessToken, refreshToken: newRefreshToken, user}
+        };
     }
-
-    // 4. Fetch the user
-    const user = await prisma.users.findUnique({ where: { id: tokenRecord.userId } });
-
-    // 5. Generate new tokens 
-    // Verify the token hasn't been tampered with first
-    verifyRefreshToken(refreshToken);
-
-    const newAccessToken = generateAccessToken(tokenRecord.userId);
-    const newRefreshToken = generateRefreshToken(tokenRecord.userId);
-
-    // 6. Update the record with new tokens invalidating the old refresh token
-    await prisma.userTokens.update({
-        where: { id: tokenRecord.id },
-        data: { accessToken: newAccessToken, refreshToken: newRefreshToken }
-    });
-
-    return {
-        success: true,
-        message: "Token refreshed",
-        data: { accessToken: newAccessToken, refreshToken: newRefreshToken, user }
-    };
-}
 
     public static async forgotPassword(input: ForgotPasswordDTO): Promise<IService> {
         return {

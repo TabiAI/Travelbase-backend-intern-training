@@ -31,32 +31,26 @@ class AuthController {
         });
         return sendResponse(reply, result);
     }
-<<<<<<< HEAD
+
     public static async verifyDeviceChange(request: FastifyRequest, reply: FastifyReply) {
-    const { otp } = VerifyDeviceChangeRequest.parse(request.body ?? {});
-    const result = await AuthService.verifyDeviceChange({
-        deviceId: <string>request.headers['x-device-id'],
-        otp,
-    });
-    return sendResponse(reply, result);
-}
+        const {otp} = VerifyDeviceChangeRequest.parse(request.body ?? {});
+        const result = await AuthService.verifyDeviceChange({
+            deviceId: <string>request.headers['x-device-id'],
+            otp,
+        });
+        return sendResponse(reply, result);
+    }
 
-public static async refreshToken(request: FastifyRequest, reply: FastifyReply) {
-    const { refreshToken } = RefreshTokenRequest.parse(request.body ?? {});
-    const result = await AuthService.refreshToken({
-        deviceId: <string>request.headers['x-device-id'],
-        refreshToken,
-    });
-    return sendResponse(reply, result);
-}
+    public static async refreshToken(request: FastifyRequest, reply: FastifyReply) {
+        const {refreshToken} = RefreshTokenRequest.parse(request.body ?? {});
+        const result = await AuthService.refreshToken({
+            deviceId: <string>request.headers['x-device-id'],
+            refreshToken,
+        });
+        return sendResponse(reply, result);
+    }
 
-
-}
-
-
-export const AuthenticationController = AuthController
-=======
 }
 
 export const AuthenticationController = AuthController;
->>>>>>> 0b1efb6dd506a1179e2d98aa16b605ef025cccd6
+
