@@ -76,8 +76,9 @@ async function authenticateBearer(request: FastifyRequest, reply: FastifyReply) 
     }
 }
 
-export async function requireDeviceHook(requrest: FastifyRequest, reply: FastifyReply) {
-    const deviceId = requrest.headers["x-device-id"];
+export async function requireDeviceHook(request: FastifyRequest, reply: FastifyReply) {
+    if (isPublicRoute(request.raw.url ?? request.url)) return;
+    const deviceId = request.headers["x-device-id"];
     if (!deviceId || typeof deviceId !== "string") {
         throw new UnAuthorizedError({msg: "Missing device id", errorCode: CustomErrorCode.AUTH_INVALID})
     }

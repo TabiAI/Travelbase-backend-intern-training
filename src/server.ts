@@ -1,9 +1,6 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import rateLimit from "@fastify/rate-limit";
-import { healthRoutes } from './routes';
 import { welcomeroutes } from './routes';
-// import rateLimit from "@fastify/rate-limit";
 import {healthRoutes, AuthRouter, UserRouter} from './routes';
 import {config} from "./config";
 import {ALLOWED_HEADERS, ALLOWED_METHODS} from "./enums";
@@ -24,7 +21,7 @@ export function buildServer() {
     //     timeWindow: config.system.rateLimitWindowMs ?? "1 minute",
     // });
 
-    app.addHook("preHandler", requireDeviceHook)
+    app.addHook("preHandler", requireDeviceHook);
     app.addHook("preHandler", requireAuthHook);
     app.register(AuthRouter);
     app.register(UserRouter);
