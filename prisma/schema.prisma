@@ -19,6 +19,8 @@ model Users {
   userAuths         UserAuths?
   UserVerifications UserVerifications[]
   UserTokens        UserTokens?
+  Bookings          Bookings[]
+  Payments          Payments[]
 }
 
 model UserAuths {
@@ -51,4 +53,154 @@ model UserTokens {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   user         Users    @relation(fields: [userId], references: [id])
+}
+
+model Airlines {
+  id        String    @id @default(uuid())
+  name      String
+  code      String    @unique
+  logoUrl   String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  Flights   Flights[]
+}
+
+model Airports {
+  id               String    @id @default(uuid())
+  name             String
+  code             String    @unique
+  city             String
+  country          String
+  timezone         String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  DepartingFlights Flights[] @relation("OriginAirport")
+  ArrivingFlights  Flights[] @relation("DestinationAirport")
+}
+
+model Flights {
+  id                   String       @id @default(uuid())
+  flightNumber         String
+  airlineId            String
+  originAirportId      String
+  destinationAirportId String
+  departureTime        DateTime
+  arrivalTime          DateTime
+  status               FlightStatus @default(SCHEDULED)
+  totalSeats           Int
+  availableSeats       Int
+  price                Decimal      @db.Decimal(10, 2)
+  currency             String       @default("USD")
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  airline              Airlines     @relation(fields: [airlineId], references: [id])
+  originAirport        Airports     @relation("OriginAirport", fields: [originAirportId], references: [id])
+  destinationAirport   Airports     @relation("DestinationAirport", fields: [destinationAirportId], references: [id])
+  Bookings             Bookings[]
+  Seats                Seats[]
+
+  @@unique([flightNumber, departureTime])
+}
+
+model Bookings {
+  id          String        @id @default(uuid())
+  userId      String
+  flightId    String
+  status      BookingStatus @default(PENDING)
+  totalAmount Decimal       @db.Decimal(10, 2)
+  currency    String        @default("USD")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  user        Users         @relation(fields: [userId], references: [id])
+  flight      Flights       @relation(fields: [flightId], references: [id])
+  Passengers  Passengers[]
+  Seats       Seats[]
+  Payments    Payments[]
+}
+
+model Passengers {
+  id             String        @id @default(uuid())
+  bookingId      String
+  firstName      String
+  lastName       String
+  email          String
+  phone          String
+  passportNumber String
+  nationality    String
+  dateOfBirth    DateTime
+  type           PassengerType @default(ADULT)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  booking        Bookings      @relation(fields: [bookingId], references: [id])
+  Seats          Seats[]
+}
+
+model Seats {
+  id          String      @id @default(uuid())
+  flightId    String
+  bookingId   String?
+  passengerId String?
+  seatNumber  String
+  class       SeatClass   @default(ECONOMY)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  flight      Flights     @relation(fields: [flightId], references: [id])
+  booking     Bookings?   @relation(fields: [bookingId], references: [id])
+  passenger   Passengers? @relation(fields: [passengerId], references: [id])
+
+  @@unique([flightId, seatNumber])
+}
+
+model Payments {
+  id             String        @id @default(uuid())
+  bookingId      String
+  userId         String
+  amount         Decimal       @db.Decimal(10, 2)
+  currency       String        @default("USD")
+  status         PaymentStatus @default(PENDING)
+  paymentMethod  PaymentMethod
+  transactionRef String        @unique
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  booking        Bookings      @relation(fields: [bookingId], references: [id])
+  user           Users         @relation(fields: [userId], references: [id])
+}
+
+enum FlightStatus {
+  SCHEDULED
+  DELAYED
+  CANCELLED
+  COMPLETED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum SeatClass {
+  ECONOMY
+  BUSINESS
+  FIRST
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESSFUL
+  FAILED
+  REFUNDED
+}
+
+enum PassengerType {
+  ADULT
+  CHILD
+  INFANT
+}
+
+enum PaymentMethod {
+  CARD
+  BANK_TRANSFER
+  WALLET
 }
