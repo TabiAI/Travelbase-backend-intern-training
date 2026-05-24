@@ -20,7 +20,8 @@ class FlightService {
         const cacheKey = searchCacheKey(input);
         const cached = await redisClient.get(cacheKey);
         if (cached) {
-            return {success: true, message: "Flights retrieved", data: JSON.parse(cached)};
+            const flights = JSON.parse(cached);
+            return {success: true, message: "Flights retrieved", data: {flights}, meta: {count: flights.length}};
         }
 
         const flights = await FlightRepository.findFlights(input.origin, input.destination, input.departureDate);
@@ -31,7 +32,7 @@ class FlightService {
         return {
             success: true,
             message: "Flights retrieved",
-            data: flights,
+            data: {flights},
             meta: {count: flights.length},
         };
     }
@@ -41,7 +42,7 @@ class FlightService {
         if (!flight) {
             throw new NotFoundError({msg: "Flight not found", errorCode: CustomErrorCode.FLIGHT_NOT_FOUND});
         }
-        return {success: true, message: "Flight retrieved", data: flight};
+        return {success: true, message: "Flight retrieved", data: {flight}};
     }
 
     public static async createBooking(userId: string, input: CreateBookingDTO): Promise<IService> {
@@ -98,12 +99,6 @@ class FlightService {
                 },
             };
         } catch (error: any) {
-            if (error?.message === "NOT_ENOUGH_SEATS") {
-                throw new BadRequestError({
-                    msg: "Not enough available seats on this flight",
-                    errorCode: CustomErrorCode.FLIGHT_UNAVAILABLE,
-                });
-            }
             if (error?.code === "P2002") {
                 throw new BadRequestError({
                     msg: "One or more requested seats are already taken",
@@ -121,7 +116,7 @@ class FlightService {
         return {
             success: true,
             message: "Bookings retrieved",
-            data: bookings,
+            data: {bookings},
             meta: {total, page, limit, totalPages: Math.ceil(total / limit)},
         };
     }
@@ -134,7 +129,7 @@ class FlightService {
         if (booking.userId !== userId) {
             throw new ForbiddenError({msg: "Access denied", errorCode: CustomErrorCode.ACCESS_DENIED});
         }
-        return {success: true, message: "Booking retrieved", data: booking};
+        return {success: true, message: "Booking retrieved", data: {booking}};
     }
 
     public static async cancelBooking(userId: string, bookingId: string): Promise<IService> {
