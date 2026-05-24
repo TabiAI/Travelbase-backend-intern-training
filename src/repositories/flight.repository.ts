@@ -1,5 +1,6 @@
 import {BookingStatus, PaymentStatus, Prisma} from "@prisma/client";
 import {prisma} from "../lib/db";
+import {BadRequestError, CustomErrorCode} from "../exceptions";
 
 type PassengerCreateInput = {
     firstName: string;
@@ -65,7 +66,10 @@ class FlightRepository {
             });
 
             if (updated.count === 0) {
-                throw new Error("NOT_ENOUGH_SEATS");
+                throw new BadRequestError({
+                    msg: "Not enough available seats on this flight",
+                    errorCode: CustomErrorCode.FLIGHT_UNAVAILABLE,
+                });
             }
 
             const booking = await tx.bookings.create({
