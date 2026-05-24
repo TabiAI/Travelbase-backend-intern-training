@@ -1,4 +1,4 @@
-import {BookingStatus, PaymentStatus, Prisma} from "@prisma/client";
+import {BookingStatus, PaymentMethod, PaymentStatus, Prisma} from "@prisma/client";
 import {prisma} from "../lib/db";
 import {BadRequestError, CustomErrorCode} from "../exceptions";
 
@@ -171,7 +171,7 @@ class FlightRepository {
         userId: string;
         amount: Prisma.Decimal;
         currency: string;
-        paymentMethod: "CARD" | "BANK_TRANSFER" | "WALLET";
+        paymentMethod: PaymentMethod;
         transactionRef: string;
     }) {
         return prisma.payments.create({data: {...data, status: "PENDING"}});
