@@ -1,5 +1,5 @@
 import {createHash, randomBytes} from "crypto";
-import {Prisma} from "@prisma/client";
+import {BookingStatus, FlightStatus, PaymentStatus, Prisma} from "@prisma/client";
 import {IService} from "../interfaces";
 import {BadRequestError, CustomErrorCode, ForbiddenError, NotFoundError} from "../exceptions";
 import {FlightRepository} from "../repositories";
@@ -51,7 +51,7 @@ class FlightService {
             throw new NotFoundError({msg: "Flight not found", errorCode: CustomErrorCode.FLIGHT_NOT_FOUND});
         }
 
-        if (flight.status !== "SCHEDULED") {
+        if (flight.status !== FlightStatus.SCHEDULED) {
             throw new BadRequestError({
                 msg: "Flight is not available for booking",
                 errorCode: CustomErrorCode.FLIGHT_UNAVAILABLE,
@@ -140,20 +140,20 @@ class FlightService {
         if (booking.userId !== userId) {
             throw new ForbiddenError({msg: "Access denied", errorCode: CustomErrorCode.ACCESS_DENIED});
         }
-        if (booking.status === "CANCELLED") {
+        if (booking.status === BookingStatus.CANCELLED) {
             throw new BadRequestError({
                 msg: "Booking is already cancelled",
                 errorCode: CustomErrorCode.BOOKING_ALREADY_CANCELLED,
             });
         }
-        if (booking.status === "COMPLETED") {
+        if (booking.status === BookingStatus.COMPLETED) {
             throw new BadRequestError({
                 msg: "Completed bookings cannot be cancelled",
                 errorCode: CustomErrorCode.RESOURCE_STATE_INVALID,
             });
         }
 
-        await FlightRepository.updateBookingStatus(bookingId, "CANCELLED");
+        await FlightRepository.updateBookingStatus(bookingId, BookingStatus.CANCELLED);
         return {success: true, message: "Booking cancelled successfully"};
     }
 
@@ -165,7 +165,7 @@ class FlightService {
         if (booking.userId !== userId) {
             throw new ForbiddenError({msg: "Access denied", errorCode: CustomErrorCode.ACCESS_DENIED});
         }
-        if (booking.status !== "PENDING") {
+        if (booking.status !== BookingStatus.PENDING) {
             throw new BadRequestError({
                 msg: "Only pending bookings can be paid",
                 errorCode: CustomErrorCode.RESOURCE_STATE_INVALID,
@@ -208,7 +208,7 @@ class FlightService {
         if (payment.userId !== userId) {
             throw new ForbiddenError({msg: "Access denied", errorCode: CustomErrorCode.ACCESS_DENIED});
         }
-        if (payment.status !== "PENDING") {
+        if (payment.status !== PaymentStatus.PENDING) {
             throw new BadRequestError({
                 msg: "Payment has already been processed",
                 errorCode: CustomErrorCode.RESOURCE_STATE_INVALID,
@@ -217,8 +217,8 @@ class FlightService {
 
         await FlightRepository.updatePaymentStatus(paymentId, input.status);
 
-        if (input.status === "SUCCESSFUL") {
-            await FlightRepository.updateBookingStatus(payment.bookingId, "CONFIRMED");
+        if (input.status === PaymentStatus.SUCCESSFUL) {
+            await FlightRepository.updateBookingStatus(payment.bookingId, BookingStatus.CONFIRMED);
         }
 
         return {success: true, message: `Payment ${input.status.toLowerCase()}`};
