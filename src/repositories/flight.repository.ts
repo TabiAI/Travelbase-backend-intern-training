@@ -76,7 +76,7 @@ class FlightRepository {
                 data: {userId, flightId, totalAmount, currency, status: "PENDING"},
             });
 
-            const createdPassengers = await Promise.all(
+            const passengerResults = await Promise.allSettled(
                 passengers.map((p) =>
                     tx.passengers.create({
                         data: {
@@ -93,6 +93,16 @@ class FlightRepository {
                     })
                 )
             );
+
+            const failedPassengers = passengerResults.filter((r) => r.status === "rejected");
+            if (failedPassengers.length > 0) {
+                throw new BadRequestError({
+                    msg: "Failed to create one or more passenger records",
+                    errorCode: CustomErrorCode.BAD_REQUEST,
+                });
+            }
+
+            const createdPassengers = (passengerResults as PromiseFulfilledResult<any>[]).map((r) => r.value);
 
             const seatAssignments = passengers
                 .map((p, i) => ({passenger: createdPassengers[i], input: p}))
