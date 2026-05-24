@@ -27,31 +27,21 @@ async function authenticateBearer(request: FastifyRequest, reply: FastifyReply) 
     const authToken = request.headers["x-auth-token"];
     const deviceId = request.headers["x-device-id"];
     
-    console.log("=== DEBUG AUTH ===");
-    console.log("x-auth-token:", authToken);
-    console.log("x-device-id:", deviceId);
-    
     if (!authToken || typeof authToken !== "string") {
-        console.log("ERROR: Missing auth token");
         throw new UnAuthorizedError({msg: "Missing auth token", errorCode: CustomErrorCode.AUTH_INVALID})
     }
 
     if (!deviceId || typeof deviceId !== "string") {
-        console.log("ERROR: Missing device id");
         throw new UnAuthorizedError({msg: "Missing device id", errorCode: CustomErrorCode.AUTH_INVALID})
     }
 
     try {
-        // Check database for the token
-        console.log("Searching for token in database...");
         const dbToken = await prisma.userTokens.findFirst({
             where: { 
-                accessToken: authToken,  // Make sure this matches your schema
+                accessToken: authToken,
                 deviceId: deviceId 
             }
         });
-        
-        console.log("Database result:", dbToken ? "FOUND" : "NOT FOUND");
         
         if (!dbToken) {
             throw new ForbiddenError({
@@ -61,17 +51,14 @@ async function authenticateBearer(request: FastifyRequest, reply: FastifyReply) 
         }
         
         const decodedJwtData = verifyToken(authToken);
-        console.log("Decoded token:", decodedJwtData);
 
         if (!decodedJwtData || decodedJwtData.tokenType !== TOKEN_TYPE.AUTH_TOKEN) {
-            console.log("ERROR: Invalid token type or decode failed");
             throw new UnAuthorizedError({msg: "Invalid auth token", errorCode: CustomErrorCode.AUTH_INVALID})
         }
 
         const user = await prisma.users.findUnique({where: {id: decodedJwtData.userId},});
 
         if (!user) {
-            console.log("ERROR: User not found");
             throw new UnAuthorizedError({msg: "Invalid auth Token ", errorCode: CustomErrorCode.AUTH_INVALID})
         }
 
@@ -80,15 +67,15 @@ async function authenticateBearer(request: FastifyRequest, reply: FastifyReply) 
             email: decodedJwtData.email,
         }
         
-        console.log("AUTH SUCCESS for user:", user.email);
         return true;
     } catch (error: unknown) {
-        console.log("AUTH ERROR:", error);
         throw new UnAuthorizedError({msg: "Invalid auth token", errorCode: CustomErrorCode.AUTH_INVALID})
     }
 }
-export async function requireDeviceHook(requrest: FastifyRequest, reply: FastifyReply) {
-    const deviceId = requrest.headers["x-device-id"];
+
+export async function requireDeviceHook(request: FastifyRequest, reply: FastifyReply) {
+    if (isPublicRoute(request.raw.url ?? request.url)) return;
+    const deviceId = request.headers["x-device-id"];
     if (!deviceId || typeof deviceId !== "string") {
         throw new UnAuthorizedError({msg: "Missing device id", errorCode: CustomErrorCode.AUTH_INVALID})
     }

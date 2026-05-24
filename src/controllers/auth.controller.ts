@@ -2,7 +2,8 @@ import authService from "../services/auth.service";
 import AuthService from "../services/auth.service";
 import {FastifyReply, FastifyRequest} from "fastify";
 import {sendResponse} from "../helpers";
-import {LoginRequest, SignupRequest,ForgotPasswordRequest, ResetPasswordRequest} from "../schemas";
+import {LoginRequest, SignupRequest,ForgotPasswordRequest, ResetPasswordRequest,VerifyDeviceChangeRequest,RefreshTokenRequest} from "../schemas";
+//import {LoginRequest, SignupRequest, VerifyDeviceChangeRequest, RefreshTokenRequest} from "../schemas";
 
 class AuthController {
     constructor() {
@@ -40,12 +41,32 @@ class AuthController {
         return sendResponse(reply, result);
     }
 
+     public static async verifyDeviceChange(request: FastifyRequest, reply: FastifyReply) {
+        const {otp} = VerifyDeviceChangeRequest.parse(request.body ?? {});
+        const result = await AuthService.verifyDeviceChange({
+            deviceId: <string>request.headers['x-device-id'],
+            otp,
+            userId: ""
+        });
+        return sendResponse(reply, result);
+    }
+
+
     public static async resetPassword(request: FastifyRequest, reply: FastifyReply) {
         const { token, newPassword } = ResetPasswordRequest.parse(request.body ?? {});
         const result = await AuthService.resetPassword({
             deviceId: <string>request.headers['x-device-id'],
             token,
             newPassword,
+        });
+        return sendResponse(reply, result); 
+    }
+
+    public static async refreshToken(request: FastifyRequest, reply: FastifyReply) {
+        const {refreshToken} = RefreshTokenRequest.parse(request.body ?? {});
+        const result = await AuthService.refreshToken({
+            deviceId: <string>request.headers['x-device-id'],
+            refreshToken,
         });
         return sendResponse(reply, result);
     }
@@ -55,3 +76,4 @@ class AuthController {
 }
 
 export const AuthenticationController = AuthController;
+

@@ -1,10 +1,12 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import rateLimit from "@fastify/rate-limit";
+//import rateLimit from "@fastify/rate-limit";
 //import { healthRoutes } from './routes';
-import { welcomeroutes } from './routes';
+//import { welcomeroutes } from './routes';
 // import rateLimit from "@fastify/rate-limit";
 import {healthRoutes, AuthRouter, userRoutes} from './routes';
+import { welcomeroutes } from './routes';
+//import {healthRoutes, AuthRouter, UserRouter} from './routes';
 import {config} from "./config";
 import {ALLOWED_HEADERS, ALLOWED_METHODS} from "./enums";
 import {fastifyErrorHandler} from "./exceptions";
