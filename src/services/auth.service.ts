@@ -238,11 +238,11 @@ class AuthService {
     }
 
     public static async resetPassword(input: ResetPasswordDTO): Promise<IService> {
-        const { token, newPassword, deviceId } = input;
+        const { confirmationToken, newPassword, deviceId } = input;
         
         const tokenRecord = await prisma.userTokens.findFirst({
             where: {
-                resetPasswordToken: token,
+                resetPasswordToken: confirmationToken,
                 resetPasswordExpires: { gt: new Date() },
             },
             include: { user: true },
