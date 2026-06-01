@@ -18,7 +18,7 @@ export const ForgotPasswordRequest = z.object({
 });
 
 export const ResetPasswordRequest = z.object({
-    confirmationToken: z.string().min(32),
+    otp: z.string().min(6).max(6),  // 6-digit OTP
     newPassword: z.string().min(8).max(128),
 });
 export const VerifyDeviceChangeRequest = z.object({

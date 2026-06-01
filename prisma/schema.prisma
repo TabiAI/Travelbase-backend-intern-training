@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = "file:./dev.db"
+  url      = env("DATABASE_URL")
 }
 
 model Users {
@@ -35,8 +35,9 @@ model UserAuths {
 model UserVerifications {
   id        String   @id @default(uuid())
   userId    String
-  token     String
-  resetPasswordToken     String?
+  token     String   // For device verification OTP
+  resetPasswordOTP     String?   // For password reset OTP
+  resetPasswordExpires DateTime? // Expiry for reset OTP
   deviceId  String
   expiresAt DateTime
   createdAt DateTime @default(now())
@@ -47,10 +48,9 @@ model UserVerifications {
 model UserTokens {
   id           String   @id @default(uuid())
   userId       String
-  resetPasswordExpires   DateTime?
   refreshToken String
   accessToken  String
-  deviceId     String
+  deviceId     String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   user         Users    @relation(fields: [userId], references: [id])

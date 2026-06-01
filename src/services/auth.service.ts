@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import bcrypt from "bcrypt";
+//import bcrypt from "bcrypt";
 import {
     ForgotPasswordDTO,
     IService,
@@ -59,7 +59,9 @@ class AuthService {
         });
 
         await tx.userTokens.create({
-            data: { userId: user.id, deviceId, accessToken, refreshToken },
+            data: { userId: user.id, 
+                deviceId:deviceId,
+                 accessToken, refreshToken },
         });
 
         return { user, accessToken, refreshToken };
@@ -189,93 +191,96 @@ class AuthService {
     }
 
     public static async forgotPassword(input: ForgotPasswordDTO): Promise<IService> {
-        const { email, deviceId } = input;
-        
-        const user = await prisma.users.findUnique({ where: { email } });
-        
-        if (!user) {
-            return {
-                success: true,
-                message: "If an account exists, a password reset link has been sent to your email",
-            }
-        }
-        
-        const resetToken = crypto.randomBytes(32).toString('hex');
-        const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
-        
-        // Use userTokens table (plural)
-        const existingToken = await prisma.userTokens.findFirst({
-            where: { userId: user.id, deviceId }
-        });
-
-        if (existingToken) {
-            await prisma.userTokens.update({
-                where: { id: existingToken.id },
-                data: {
-                    resetPasswordToken: resetToken,
-                    resetPasswordExpires: expiresAt,
-                }
-            });
-        } else {
-            await prisma.userTokens.create({
-                data: {
-                    userId: user.id,
-                    deviceId,
-                    resetPasswordToken: resetToken,
-                    resetPasswordExpires: expiresAt,
-                    refreshToken: crypto.randomBytes(40).toString('hex'),
-                    accessToken: crypto.randomBytes(32).toString('hex')
-                }
-            });
-        }
-        
-        console.log(`\n 🔐 RESET TOKEN FOR ${email}: ${resetToken}\n`);
-        
+    const { email, deviceId } = input;
+    
+    // Find user (don't reveal if exists for security)
+    const user = await prisma.users.findUnique({ where: { email } });
+    
+    if (!user) {
         return {
             success: true,
-            message: "If an account exists, a password reset link has been sent to your email",
+            message: "If an account exists, an OTP has been sent to your email",
         }
     }
+    
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes expiry
+    
+    // Delete any existing reset OTP for this user+device
+    await prisma.userVerifications.deleteMany({
+        where: { 
+            userId: user.id, 
+            deviceId,
+            resetPasswordOTP: { not: null }
+        }
+    });
+    
+    // Store OTP in userVerifications table
+    await prisma.userVerifications.create({
+        data: {
+            userId: user.id,
+            deviceId:deviceId,
+            resetPasswordOTP: otp,
+            resetPasswordExpires: expiresAt,
+            token: crypto.randomBytes(32).toString('hex'), // required field
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // required field
+        }
+    }as any);
+    
+    // Log OTP for testing (remove in production)
+    console.log(`\n 🔐 PASSWORD RESET OTP FOR ${email}: ${otp}\n`);
+    
+    return {
+        success: true,
+        message: "If an account exists, an OTP has been sent to your email",
+    }
+}
+
+
 
     public static async resetPassword(input: ResetPasswordDTO): Promise<IService> {
-        const { confirmationToken, newPassword, deviceId } = input;
-        
-        const tokenRecord = await prisma.userTokens.findFirst({
-            where: {
-                resetPasswordToken: confirmationToken,
-                resetPasswordExpires: { gt: new Date() },
-            },
-            include: { user: true },
+    const { otp, newPassword, deviceId } = input;
+    
+    // Find valid OTP in userVerifications table
+    const otpRecord = await prisma.userVerifications.findFirst({
+        where: {
+            resetPasswordOTP: otp,
+            resetPasswordExpires: { gt: new Date() },
+            deviceId: deviceId,
+        },
+        include: { user: true },
+    });
+    
+    if (!otpRecord || !otpRecord.user) {
+        throw new BadRequestError({
+            msg: "Invalid or expired OTP",
+            errorCode: CustomErrorCode.AUTH_INVALID,
         });
-        
-        if (!tokenRecord) {
-            throw new BadRequestError({
-                msg: "Invalid or expired reset token",
-                errorCode: CustomErrorCode.AUTH_INVALID,
-            });
-        }
-        
-        const saltRounds = 10;
-        const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
-        
-        await prisma.userAuths.updateMany({
-            where: { userId: tokenRecord.user.id },
-            data: { passwordHash: hashedPassword },
-        });
-        
-        await prisma.userTokens.update({
-            where: { id: tokenRecord.id },
-            data: {
-                resetPasswordToken: null,
-                resetPasswordExpires: null,
-            },
-        });
-        
-        return {
-            success: true,
-            message: "Password has been reset successfully",
-        }
     }
+    
+    // Hash the new password using helper
+    const hashedPassword = await hashPassword(newPassword);
+    
+    // Update password in userAuths
+    await prisma.userAuths.updateMany({
+        where: { userId: otpRecord.user.id },
+        data: { passwordHash: hashedPassword },
+    });
+    
+    // Delete the used OTP (cleanup)
+    await prisma.userVerifications.deleteMany({
+        where: {
+            userId: otpRecord.user.id,
+            resetPasswordOTP: otp,
+        }
+    });
+    
+    return {
+        success: true,
+        message: "Password has been reset successfully",
+    }
+}
 
     public static async refreshToken(input: RefreshTokenDTO): Promise<IService> {
         const {refreshToken, deviceId} = input;

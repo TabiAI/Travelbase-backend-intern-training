@@ -23,7 +23,7 @@ export interface RefreshTokenDTO extends DeviceId {
 }
 
 export interface ResetPasswordDTO extends DeviceId{
-    confirmationToken: string;
+    otp: string; 
     newPassword: string;
 }
 
