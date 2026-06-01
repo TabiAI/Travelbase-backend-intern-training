@@ -2,7 +2,7 @@ import {config} from "dotenv";
 
 config();
 import {buildServer} from "./server";
-import {config as environmentVariables} from './config'
+import {config as environmentVariables} from './config';
 import {connectRedis} from "./lib";
 import {Logger} from "./helpers/Logger";
 

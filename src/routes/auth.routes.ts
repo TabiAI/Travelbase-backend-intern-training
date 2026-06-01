@@ -9,4 +9,3 @@ export async function AuthRouter(app: FastifyInstance) {
     app.post("/v1/auth/verify-device-change", async (request, reply) => AuthenticationController.verifyDeviceChange(request, reply));
     app.post("/v1/auth/refresh-token", async (request, reply) => AuthenticationController.refreshToken(request, reply));
 }
-
