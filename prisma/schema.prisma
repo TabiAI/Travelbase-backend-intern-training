@@ -18,14 +18,14 @@ model Users {
   bio               String?        
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
-  UserAuths         UserAuths[]
+  UserAuths         UserAuths?
   UserVerifications UserVerifications[]
   UserTokens        UserTokens[]
 }
 
 model UserAuths {
   id           String   @id @default(uuid())
-  userId       String
+  userId       String   @unique
   passwordHash String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -50,7 +50,7 @@ model UserTokens {
   userId       String
   refreshToken String
   accessToken  String
-  deviceId     String?
+  deviceId     String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   user         Users    @relation(fields: [userId], references: [id])
