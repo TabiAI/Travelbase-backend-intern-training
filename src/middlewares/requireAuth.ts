@@ -19,6 +19,8 @@ function isPublicRoute(url: string) {
         url.startsWith("/v1/admin") ||
         url.startsWith("/v1/auth") ||
         url.startsWith("/v1/webhooks/air") ||
+        url.startsWith("/v1/flights/search") ||
+        (url.startsWith("/v1/flights/") && !url.includes("/bookings") && !url.includes("/payments")) ||
         !url.startsWith("/v1")
     );
 }
