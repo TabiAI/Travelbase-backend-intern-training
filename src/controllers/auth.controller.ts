@@ -53,11 +53,11 @@ class AuthController {
     }
 
     public static async resetPassword(request: FastifyRequest, reply: FastifyReply) {
-        const { token, newPassword } = ResetPasswordRequest.parse(request.body ?? {});
+        const { newPassword } = ResetPasswordRequest.parse(request.body ?? {});
         const result = await AuthService.resetPassword({
             deviceId: request.headers['x-device-id'] as string,
-            token,
             newPassword,
+            otp: ""
         });
         return sendResponse(reply, result);
     }

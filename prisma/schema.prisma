@@ -18,9 +18,9 @@ model Users {
   bio               String?        
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
-  UserAuths         UserAuths?
+  UserAuths         UserAuths[]
   UserVerifications UserVerifications[]
-  UserTokens        UserTokens?
+  UserTokens        UserTokens[]
   Bookings          Bookings[]
   Payments          Payments[]
 }
@@ -37,9 +37,9 @@ model UserAuths {
 model UserVerifications {
   id        String   @id @default(uuid())
   userId    String
-  token     String   // For device verification OTP
-  resetPasswordOTP     String?   // For password reset OTP
-  resetPasswordExpires DateTime? // Expiry for reset OTP
+  token     String
+  resetPasswordOTP     String?
+  resetPasswordExpires DateTime?
   deviceId  String
   expiresAt DateTime
   createdAt DateTime @default(now())
@@ -168,7 +168,31 @@ model Payments {
   booking        Bookings      @relation(fields: [bookingId], references: [id])
   user           Users         @relation(fields: [userId], references: [id])
 }
+model admins {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password_hash String
+  name          String?
+  role          String   @default("admin")
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  AdminTokens   AdminTokens[]
+}
 
+model AdminTokens {
+  id         String   @id @default(uuid())
+  admin_id   String
+  token_hash String   @unique
+  user_agent String?
+  ip_address String?
+  is_revoked Boolean  @default(false)
+  created_at DateTime @default(now())
+  expires_at DateTime
+
+  admin      admins   @relation(fields: [admin_id], references: [id])
+
+  @@index([token_hash, is_revoked])
+}
 enum FlightStatus {
   SCHEDULED
   DELAYED

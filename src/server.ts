@@ -1,9 +1,10 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
-import {healthRoutes, welcomeroutes, AuthRouter, UserRouter, FlightRouter} from './routes';
+//import {healthRoutes, welcomeroutes, AuthRouter, UserRouter, FlightRouter} from './routes';
 import { welcomeroutes } from './routes';
 import {healthRoutes, AuthRouter, UserRouter} from './routes';
+import { adminRoutes } from './routes/admin.routes';
 import {config} from "./config";
 import {ALLOWED_HEADERS, ALLOWED_METHODS} from "./enums";
 import {fastifyErrorHandler} from "./exceptions";
@@ -27,7 +28,8 @@ export function buildServer() {
     app.addHook("preHandler", requireAuthHook);
     app.register(AuthRouter);
     app.register(UserRouter);
-    app.register(FlightRouter);
+    app.register(adminRoutes);
+    //app.register(FlightRouter);
     app.register(healthRoutes);
     app.register(welcomeroutes);
 
