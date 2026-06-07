@@ -2,7 +2,7 @@ import {FastifyReply, FastifyRequest} from "fastify";
 import {CustomErrorCode, ForbiddenError, UnAuthorizedError} from "../exceptions";
 import {prisma} from "../lib/db";
 import {TOKEN_TYPE, verifyToken} from "../helpers";
-import {redisClient} from "../lib";
+//import {redisClient} from "../lib";
 
 export async function requireAuthHook(
     request: FastifyRequest,
@@ -28,6 +28,7 @@ function isPublicRoute(url: string) {
 async function authenticateBearer(request: FastifyRequest, reply: FastifyReply) {
     const authToken = request.headers["x-auth-token"];
     const deviceId = request.headers["x-device-id"];
+    
     if (!authToken || typeof authToken !== "string") {
         throw new UnAuthorizedError({msg: "Missing auth token", errorCode: CustomErrorCode.AUTH_INVALID})
     }
@@ -37,23 +38,20 @@ async function authenticateBearer(request: FastifyRequest, reply: FastifyReply) 
     }
 
     try {
-
-        const cacheKey = `travelBase_token:${authToken}:${deviceId}`;
-        const cachedToken = await redisClient.get(cacheKey);
-        if (!cachedToken) {
-            const dbToken = await prisma.userTokens.findFirst({
-                where: {accessToken: authToken, deviceId}
-            })
-            if (!dbToken) {
-                throw new ForbiddenError({
-                    msg: 'Invalid token',
-                    errorCode: CustomErrorCode.AUTH_INVALID
-                });
-            } else {
-                await redisClient.set(cacheKey, JSON.stringify(dbToken.accessToken));
-                await redisClient.expire(cacheKey, 60 * 60 * 24 * 7); // 7 days
+        const dbToken = await prisma.userTokens.findFirst({
+            where: { 
+                accessToken: authToken,
+                deviceId: deviceId 
             }
+        });
+        
+        if (!dbToken) {
+            throw new ForbiddenError({
+                msg: 'Invalid token',
+                errorCode: CustomErrorCode.AUTH_INVALID
+            });
         }
+        
         const decodedJwtData = verifyToken(authToken);
 
         if (!decodedJwtData || decodedJwtData.tokenType !== TOKEN_TYPE.AUTH_TOKEN) {
@@ -70,10 +68,9 @@ async function authenticateBearer(request: FastifyRequest, reply: FastifyReply) 
             id: decodedJwtData.userId,
             email: decodedJwtData.email,
         }
-
+        
         return true;
     } catch (error: unknown) {
-        console.log(error);
         throw new UnAuthorizedError({msg: "Invalid auth token", errorCode: CustomErrorCode.AUTH_INVALID})
     }
 }
