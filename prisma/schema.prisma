@@ -12,11 +12,13 @@ model Users {
   email             String              @unique
   firstName         String?
   lastName          String?
-  phone             String?
-  company           String?
+  phone             String?        
+  company           String?        
+  profilePicture    String?        
+  bio               String?        
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
-  userAuths         UserAuths?
+  UserAuths         UserAuths?
   UserVerifications UserVerifications[]
   UserTokens        UserTokens?
   Bookings          Bookings[]
@@ -24,19 +26,20 @@ model Users {
 }
 
 model UserAuths {
-  id                String   @id @default(uuid())
-  userId            String   @unique
-  passwordHash      String
-  recognisedDevices String[] @default([])
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  user              Users    @relation(fields: [userId], references: [id])
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         Users    @relation(fields: [userId], references: [id])
 }
 
 model UserVerifications {
   id        String   @id @default(uuid())
   userId    String
-  token     String
+  token     String   // For device verification OTP
+  resetPasswordOTP     String?   // For password reset OTP
+  resetPasswordExpires DateTime? // Expiry for reset OTP
   deviceId  String
   expiresAt DateTime
   createdAt DateTime @default(now())
@@ -46,7 +49,7 @@ model UserVerifications {
 
 model UserTokens {
   id           String   @id @default(uuid())
-  userId       String   @unique
+  userId       String
   refreshToken String
   accessToken  String
   deviceId     String

@@ -6,6 +6,8 @@ CREATE TABLE "Users" (
     "lastName" TEXT,
     "phone" TEXT,
     "company" TEXT,
+    "profilePicture" TEXT,
+    "bio" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -17,7 +19,6 @@ CREATE TABLE "UserAuths" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "passwordHash" TEXT NOT NULL,
-    "recognisedDevices" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -29,6 +30,8 @@ CREATE TABLE "UserVerifications" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "token" TEXT NOT NULL,
+    "resetPasswordOTP" TEXT,
+    "resetPasswordExpires" TIMESTAMP(3),
     "deviceId" TEXT NOT NULL,
     "expiresAt" TIMESTAMP(3) NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -52,9 +55,6 @@ CREATE TABLE "UserTokens" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Users_email_key" ON "Users"("email");
-
--- CreateIndex
-CREATE UNIQUE INDEX "UserAuths_userId_key" ON "UserAuths"("userId");
 
 -- AddForeignKey
 ALTER TABLE "UserAuths" ADD CONSTRAINT "UserAuths_userId_fkey" FOREIGN KEY ("userId") REFERENCES "Users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

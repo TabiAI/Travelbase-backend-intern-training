@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import {config} from '../config';
+import { config } from '../config';
 
 export enum TOKEN_TYPE {
     AUTH_TOKEN = 'AUTH_TOKEN',
@@ -14,23 +14,30 @@ export interface TokenPayload {
     tokenType: TOKEN_TYPE;
 }
 
+const JWT_SECRET = config.jwt.secret;
+const ACCESS_EXPIRES = config.jwt.accessExpiresIn;
+const REFRESH_EXPIRES = config.jwt.refreshExpiresIn;
+
 export function generateJwtToken(payload: TokenPayload): string {
+    if (!JWT_SECRET) {
+        throw new Error('JWT_SECRET is not defined in config');
+    }
+    
+    const { tokenType, ...cleanPayload } = payload;
+    
     if (payload.tokenType === TOKEN_TYPE.AUTH_TOKEN) {
-        return jwt.sign(payload, config.jwt.secret, {
-            expiresIn: config.jwt.accessExpiresIn as jwt.SignOptions['expiresIn'],
-        });
+        return jwt.sign(cleanPayload, JWT_SECRET, { expiresIn: ACCESS_EXPIRES as any });
     } else if (payload.tokenType === TOKEN_TYPE.REFRESH_TOKEN) {
-        return jwt.sign(payload, config.jwt.secret, {
-            expiresIn: config.jwt.refreshExpiresIn as jwt.SignOptions['expiresIn'],
-        });
+        return jwt.sign(cleanPayload, JWT_SECRET, { expiresIn: REFRESH_EXPIRES as any });
     } else if (payload.tokenType === TOKEN_TYPE.RESET_TOKEN) {
-        return jwt.sign(payload, config.jwt.secret, {
-            expiresIn: '1h',
-        });
+        return jwt.sign(cleanPayload, JWT_SECRET, { expiresIn: '1h' as any });
     }
     throw new Error('Invalid token type');
 }
 
 export function verifyToken(token: string): TokenPayload {
-    return jwt.verify(token, config.jwt.secret) as TokenPayload;
+    if (!JWT_SECRET) {
+        throw new Error('JWT_SECRET is not defined');
+    }
+    return jwt.verify(token, JWT_SECRET) as TokenPayload;
 }
