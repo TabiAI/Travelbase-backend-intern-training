@@ -15,8 +15,14 @@ class AuthController {
 
     public static async signup(request: FastifyRequest, reply: FastifyReply) {
         const body = SignupRequest.parse(request.body ?? {});
+        
+        // Fail-safe fallback: extract referralCode directly from request body 
+        // in case the SignupRequest validation schema strips it out.
+        const referralCode = (request.body as any)?.referralCode;
+
         const result = await AuthService.signup({
             ...body,
+            referralCode, // <-- Securely passing down the payload parameter
             deviceId: <string>request.headers['x-device-id'],
         });
         return sendResponse(reply, result, 201);
@@ -53,4 +59,3 @@ class AuthController {
 }
 
 export const AuthenticationController = AuthController;
-

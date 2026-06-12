@@ -2,12 +2,11 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import {healthRoutes, welcomeroutes, AuthRouter, UserRouter, FlightRouter} from './routes';
-import { welcomeroutes } from './routes';
-import {healthRoutes, AuthRouter, UserRouter} from './routes';
 import {config} from "./config";
 import {ALLOWED_HEADERS, ALLOWED_METHODS} from "./enums";
 import {fastifyErrorHandler} from "./exceptions";
 import {requireAuthHook, requireDeviceHook} from "./middlewares";
+import { ReferralRouter } from './routes'; // <-- Added this line to import the new router
 
 export function buildServer() {
     const app = Fastify({logger: true});
@@ -28,6 +27,7 @@ export function buildServer() {
     app.register(AuthRouter);
     app.register(UserRouter);
     app.register(FlightRouter);
+    app.register(ReferralRouter); // <-- Added this line to register the referral system
     app.register(healthRoutes);
     app.register(welcomeroutes);
 

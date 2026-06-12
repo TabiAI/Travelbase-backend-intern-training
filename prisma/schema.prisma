@@ -21,6 +21,11 @@ model Users {
   UserTokens        UserTokens?
   Bookings          Bookings[]
   Payments          Payments[]
+  //referral fields
+  referralCode      String              @unique
+  referralPoints    Int                 @default(0)
+  ReferralsGiven    Referrals[]         @relation("ReferrerRelation")
+  ReferralReceived  Referrals?          @relation("RefereeRelation")
 }
 
 model UserAuths {
@@ -203,4 +208,18 @@ enum PaymentMethod {
   CARD
   BANK_TRANSFER
   WALLET
+}
+
+model Referrals {
+  id          String   @id @default(uuid())
+  referrerId  String
+  refereeId   String   @unique
+  codeUsed    String
+  pointsGiven Int      @default(10)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  referrer Users @relation("ReferrerRelation", fields: [referrerId], references: [id])
+  referee  Users @relation("RefereeRelation", fields: [refereeId], references: [id])
 }
