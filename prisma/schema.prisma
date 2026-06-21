@@ -219,7 +219,7 @@ model Referrals {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Relations
+
   referrer Users @relation("ReferrerRelation", fields: [referrerId], references: [id])
   referee  Users @relation("RefereeRelation", fields: [refereeId], references: [id])
 }

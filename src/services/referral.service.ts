@@ -1,18 +1,20 @@
 import { PrismaClient, Prisma } from "@prisma/client";
-import { randomBytes } from "crypto"; // Built into Node.js (No installation required!)
+import { randomBytes } from "crypto";
+import { CustomErrorCode } from "../exceptions/error.code.js";
+import { 
+  NotFoundError, 
+  BadRequestError, 
+  ForbiddenError 
+} from "../exceptions/operational.error.js";
 
 const prisma = new PrismaClient();
 
 export class ReferralService {
-  /**
-   * Generates a unique referral code string using native crypto.
-   */
   private static generateCode(companyName?: string): string {
     const prefix = companyName 
       ? companyName.replace(/\s+/g, "").substring(0, 3).toUpperCase() 
       : "TB";
     
-    // Generate a 6-character random alphanumeric string
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     let randomString = "";
     const bytes = randomBytes(6);
@@ -24,9 +26,6 @@ export class ReferralService {
     return `${prefix}-${randomString}`;
   }
 
-  /**
-   * Retrieves an existing referral code for a user, or generates a new one.
-   */
   async getOrCreateReferralCode(userId: string): Promise<string> {
     const user = await prisma.users.findUnique({
       where: { id: userId },
@@ -34,7 +33,10 @@ export class ReferralService {
     });
 
     if (!user) {
-      throw new Error("USER_NOT_FOUND");
+      throw new NotFoundError({
+        msg: "User not found",
+        errorCode: CustomErrorCode.RESOURCE_NOT_FOUND,
+      });
     }
 
     if (user.referralCode) {
@@ -52,9 +54,6 @@ export class ReferralService {
     return updatedUser.referralCode;
   }
 
-  /**
-   * Validates if a referral code exists in the system.
-   */
   async validateCode(code: string) {
     const referrer = await prisma.users.findUnique({
       where: { referralCode: code.toUpperCase().trim() },
@@ -68,9 +67,6 @@ export class ReferralService {
     return { isValid: true, referrer };
   }
 
-  /**
-   * Process the referral credit during user signup inside a Prisma Transaction.
-   */
   async processSignupReferral(
     tx: Prisma.TransactionClient,
     refereeId: string,
@@ -83,11 +79,17 @@ export class ReferralService {
     });
 
     if (!referrer) {
-      throw new Error("INVALID_REFERRAL_CODE");
+      throw new BadRequestError({
+        msg: "Invalid referral code",
+        errorCode: CustomErrorCode.INVALID_INPUT,
+      });
     }
 
     if (referrer.id === refereeId) {
-      throw new Error("SELF_REFERRAL_FORBIDDEN");
+      throw new ForbiddenError({
+        msg: "Self-referral is forbidden",
+        errorCode: CustomErrorCode.ACTION_NOT_ALLOWED,
+      });
     }
 
     await tx.referrals.create({
@@ -109,9 +111,6 @@ export class ReferralService {
     });
   }
 
-  /**
-   * Helper utility to generate a code string during standard signups.
-   */
   generateInitialCode(companyName?: string): string {
     return ReferralService.generateCode(companyName);
   }

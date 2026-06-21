@@ -14,7 +14,7 @@ import { ReferralService } from "./referral.service"; // <-- Import our new Refe
 
 const referralService = new ReferralService(); // <-- Instantiate the Referral Service
 
-// Source of Truth -> Database
+
 
 class AuthService {
 
