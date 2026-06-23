@@ -1,13 +1,11 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { ReferralService } from "../services/referral.service";
-
-const referralService = new ReferralService();
+import { ReferralService } from "../services/referral.service.js";
 
 export class ReferralController {
+  private readonly referralService = new ReferralService();
 
-  async getMyCode(request: FastifyRequest, reply: FastifyReply) {
+  getMyCode = async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-
       const userId = (request as any).user?.id; 
       
       if (!userId) {
@@ -21,7 +19,7 @@ export class ReferralController {
         });
       }
 
-      const code = await referralService.getOrCreateReferralCode(userId);
+      const code = await this.referralService.getOrCreateReferralCode(userId);
       
       return reply.status(200).send({
         success: true,
@@ -39,10 +37,7 @@ export class ReferralController {
     }
   }
 
-  /**
-   * GET /v1/referrals/validate
-   */
-  async validateIncomingCode(request: FastifyRequest, reply: FastifyReply) {
+  validateIncomingCode = async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const { code } = request.query as { code?: string };
 
@@ -58,7 +53,7 @@ export class ReferralController {
         });
       }
 
-      const result = await referralService.validateCode(code);
+      const result = await this.referralService.validateCode(code);
 
       if (!result.isValid) {
         return reply.status(404).send({
