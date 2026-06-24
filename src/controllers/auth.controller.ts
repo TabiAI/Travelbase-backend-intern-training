@@ -7,7 +7,7 @@ import {LoginRequest, SignupRequest, VerifyDeviceChangeRequest, RefreshTokenRequ
 class AuthController {
     constructor() {
         authService.initialize();
-    }
+    } 
 
     static initialize() {
         new AuthController();
