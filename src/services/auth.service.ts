@@ -10,8 +10,11 @@ import {
 import {prisma} from "../lib/db";
 import {BadRequestError, CustomErrorCode, NotFoundError, UnAuthorizedError} from "../exceptions";
 import {generateJwtToken, hashPassword, TOKEN_TYPE, verifyPassword, verifyToken} from "../helpers";
+import { ReferralService } from "./referral.service"; // <-- Import our new Referral Service
 
-// Source of Truth -> Database
+const referralService = new ReferralService(); // <-- Instantiate the Referral Service
+
+
 
 class AuthService {
 
@@ -19,8 +22,9 @@ class AuthService {
         new AuthService();
     }
 
-    public static async signup(input: SignupDTO): Promise<IService> {
-        const {email, password, firstName, lastName, phone, company, deviceId} = input;
+    public static async signup(input: SignupDTO & { referralCode?: string }): Promise<IService> {
+        // Updated destructuring to pull referralCode from the input payload
+        const {email, password, firstName, lastName, phone, company, deviceId, referralCode} = input;
 
         const existingUser = await prisma.users.findUnique({where: {email}});
         if (existingUser) {
@@ -33,9 +37,33 @@ class AuthService {
         const passwordHash = await hashPassword(password);
 
         const {user, accessToken, refreshToken} = await prisma.$transaction(async (tx) => {
+            // Automatically assign the user their own referral code right on database record creation
             const user = await tx.users.create({
-                data: {email, firstName, lastName, phone, company},
+                data: {
+                    email, 
+                    firstName, 
+                    lastName, 
+                    phone, 
+                    company,
+                    referralCode: referralService.generateInitialCode(company ?? undefined)
+                },
             });
+
+            // If a referral code was provided by the prospect, process the relationship and commission
+            if (referralCode) {
+                try {
+                    await referralService.processSignupReferral(tx, user.id, referralCode);
+                } catch (error: any) {
+                    throw new BadRequestError({
+                        msg: error.message === "INVALID_REFERRAL_CODE"
+                            ? "The provided referral code is invalid."
+                            : error.message === "SELF_REFERRAL_FORBIDDEN"
+                            ? "You cannot refer yourself."
+                            : "Failed to process referral code.",
+                        errorCode: CustomErrorCode.AUTH_INVALID
+                    });
+                }
+            }
 
             await tx.userAuths.create({
                 data: {userId: user.id, passwordHash, recognisedDevices: [deviceId]},
@@ -272,7 +300,7 @@ class AuthService {
             success: true,
             message: "Password reset link sent to your email",
             data: {
-                confirmationToken: "" // a jwt token that will used an header to verify the reset is coming from our server initiated request
+                confirmationToken: "" 
             }
         }
     }
@@ -285,6 +313,5 @@ class AuthService {
     }
 
 }
-
 
 export default AuthService;
